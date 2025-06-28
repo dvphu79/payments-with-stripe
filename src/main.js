@@ -23,6 +23,14 @@ export default async (context) => {
     });
 
     return res.text(html, 200, { 'Content-Type': 'text/html; charset=utf-8' });
+  } else if (req.method === 'POST') {
+    const stripe = new StripeService();
+    switch (req.path) {
+      case '/stripe-key':
+        return res.json({ key: process.env.STRIPE_PUBLISHABLE_KEY });
+      default:
+        return res.text('Not Found', 404);
+    }
   }
 
   const appwrite = new AppwriteService(context.req.headers['x-appwrite-key']);
