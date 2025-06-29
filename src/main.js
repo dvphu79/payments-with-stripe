@@ -1,6 +1,7 @@
 import StripeService from './stripe.js';
 import AppwriteService from './appwrite.js';
 import { getStaticFile, interpolate, throwIfMissing } from './utils.js';
+import Stripe from 'stripe';
 
 export default async (context) => {
   const { req, res, log, error } = context;
@@ -24,10 +25,39 @@ export default async (context) => {
 
     return res.text(html, 200, { 'Content-Type': 'text/html; charset=utf-8' });
   } else if (req.method === 'POST') {
-    const stripe = new StripeService();
     switch (req.path) {
       case '/stripe-key':
         return res.json({ key: process.env.STRIPE_PUBLISHABLE_KEY });
+      case '/create-payment-intent':
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+        const { email, amount, currency } = req.body;
+        const customer = await stripe.customers.create({ email });
+        // Create a PaymentIntent with the order amount and currency.
+        const params = {
+          amount: amount,
+          currency: currency,
+          customer: customer.id,
+          payment_method_options: {
+            card: {
+              request_three_d_secure: 'automatic',
+            },
+            sofort: {
+              preferred_language: 'en',
+            }, 
+          },
+          payment_method_types: ['card'],
+        };
+        try {
+          const paymentIntent = await stripe.paymentIntents.create(params);
+          // Send publishable key and PaymentIntent client_secret to client.
+          return res.send({
+            clientSecret: paymentIntent.client_secret,
+          });
+        } catch (error) {
+          return res.send({
+            error: error.raw.message,
+          });
+        }
       default:
         return res.text('Not Found', 404);
     }
